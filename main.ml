@@ -1,4 +1,4 @@
-(* new type for stream so we can read file. Also fields for linenum and char buffer (list of chars) *)
+(* stream type for reading file. Fields for linenum and char buffer *)
 type stream =
   { mutable line_num: int; mutable chr: char list; chan: in_channel };;
 
@@ -47,12 +47,41 @@ type lobject =
 (* exception types*)
 exception SyntaxError of string;;
 exception ThisCan'tHappenError;;
+exception NotFound of string;;
+exception TypeError of string;;
 
 let rec pair_to_list pr =
   match pr with
   | Nil -> []
   | Pair(a, b) -> a::(pair_to_list b)
   | _ -> raise ThisCan'tHappenError;;
+
+(* go through env (list of tuples) and search for requested symbol value *)
+let rec lookup (n, e) =
+    match e with
+    | Nil -> raise (NotFound n)
+    | Pair(Pair(Symbol n', v), rst) ->
+            if n=n' then v else lookup (n, rst)
+    | _ -> raise ThisCan'tHappenError;;
+
+let bind (n, v, e) = Pair(Pair(Symbol n, v), e);;
+
+let rec eval_sexp sexp env =
+    let eval_if cond iftrue iffalse =
+        let (condval, _) = eval_sexp cond env in
+        match condval with
+        | Boolean(true) -> iftrue
+        | Boolean(false) -> iffalse
+        | _ -> raise (TypeError "(if bool e1 e2)")
+    in
+    match sexp with
+    | Fixnum(v) -> (Fixnum(v), env) (*self eval ints and bools *)
+    | Boolean(v) -> (Boolean(v), env)
+    | Symbol(v) -> (Symbol(v), env) (* symbols self-evalute for now, but later should lookup var value *)
+    | Nil -> (Nil, env)
+    | Pair(Symbol "if", Pair(cond, Pair(iftrue, Pair(iffalse, Nil)))) -> (* if statements *)
+            eval_sexp (eval_if cond iftrue iffalse) env
+    | _ -> (sexp, env)
 
 (* Read Expresions *)
 let stringOfChar c = String.make 1 c;; (* faster than Char.escaped and easier to read *)
@@ -121,6 +150,7 @@ let rec read_sexp stm =
   then read_list stm
   else raise (SyntaxError ("Unexpected char " ^ (Char.escaped c)));;
 
+(* print returned expressions *)
 let rec print_sexp e =
   let rec print_list l =
     match l with
@@ -155,16 +185,25 @@ let rec repl stm =
   print_string "> ";
   flush stdout;
   let sexp = read_sexp stm in
-  print_sexp sexp;
+  let (result, env') = eval_sexp sexp env in
+  print_sexp result;
   print_newline ();
-  repl stm;;
+  repl stm env';;
 
 let main =
   let stm = { chr=[]; line_num=1; chan=stdin } in
-  repl stm;;
+  repl stm Nil;; (* starting with empty env for now *)
 
 
 (* OLD STUFF *)
+(* repl before environments *)
+(* let rec repl stm = *)
+(*   print_string "> "; *)
+(*   flush stdout; *)
+(*   let sexp = read_sexp stm in *)
+(*   print_sexp sexp; *)
+(*   print_newline (); *)
+(*   repl stm;; *)
 (* else if c = 't' then Boolean(true) *) (* simple t and f bool support, replaced with checks inside symbol parsing *)
   (* else if c = 'f' then  Boolean(false)   *)
 (* old def *)
