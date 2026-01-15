@@ -70,7 +70,14 @@ let rec lookup (n, e) =
             if n=n' then v else lookup (n, rst)
     | _ -> raise ThisCan'tHappenError;;
 
-let bind (n, v, e) = Pair(Pair(Symbol n, v), e);; (* name, value, expression *)
+let bind (n, v, e) = Pair(Pair(Symbol n, v), e);; (* name, value, env *)
+let rec unbind (n, e) =
+  match e with
+  | Nil -> Nil
+  | Pair(Pair(Symbol n', v), rst) -> (* match with env (A list made of Pair( Pair(sym, val), rest_of_env)). rest_of_env can be Nil or more nestsed Pair chains *)
+     if n = n' then rst (* if symbol in pair matches e, return rest of env, without matched symbol pair *)
+     else Pair(Pair(Symbol n', v), unbind (n, rst))
+  | _ -> raise ThisCan'tHappenError;;
 
 let rec eval_sexp sexp env =
     let eval_if cond iftrue iffalse =
@@ -81,7 +88,8 @@ let rec eval_sexp sexp env =
         | _ -> raise (TypeError "(if bool e1 e2)")
     in
     match sexp with
-    | Fixnum(v) -> (Fixnum(v), env) (*self eval ints and bools *)
+    (* match each expression type and return value, new_env *)
+    | Fixnum(v) -> (Fixnum(v), env) (*self eval ints and bools. Pass env through unchanged *)
     | Boolean(v) -> (Boolean(v), env)
     | Symbol(name) -> (lookup (name, env), env) (* symbols return value *)
     | Nil -> (Nil, env)
@@ -89,11 +97,14 @@ let rec eval_sexp sexp env =
       (match pair_to_list sexp with
        | [Symbol "if"; cond; iftrue; iffalse] ->
           eval_sexp (eval_if cond iftrue iffalse) env
-       | [Symbol "env"] -> (env, env)
+       | [Symbol "env"] -> (env, env) (* returned val, returned env *)
        | [Symbol "val"; Symbol name; exp] ->
           let (expval, _) = eval_sexp exp env in
           let env' = bind (name, expval, env) in
           (expval, env')
+       | [Symbol "unbind"; Symbol name] ->
+          let env' = unbind(name, env) in
+          (Nil, env')
        | _ -> (sexp, env)
       )
     | _ -> (sexp, env)
