@@ -181,7 +181,7 @@ let rec print_sexp e =
      else print_pair e;
      print_string ")";;
 
-let rec repl stm =
+let rec repl stm env =
   print_string "> ";
   flush stdout;
   let sexp = read_sexp stm in
