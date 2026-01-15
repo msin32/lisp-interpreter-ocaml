@@ -18,6 +18,14 @@ let unread_char stm c =
   if c = '\n' then stm.line_num  <- stm.line_num - 1; (* if newline, unread another char and decrement linenum *)
     stm.chr <- c :: stm.chr;;
 
+(* lisp typesystem *)
+type lobject =
+  | Fixnum of int
+    | Boolean of bool
+    | Symbol of string
+    | Nil
+    | Pair of lobject * lobject
+
 (* whitespace handling *)
 let is_white c =
   c = ' ' || c = '\t' || c = '\n';;
@@ -40,14 +48,6 @@ let rec eat_whitespace stm =
   else
     unread_char stm c;
   ();;
-
-(* lisp typesystem *)
-type lobject =
-  | Fixnum of int
-    | Boolean of bool
-    | Symbol of string
-    | Nil
-    | Pair of lobject * lobject
 
 
 (* exception types*)
