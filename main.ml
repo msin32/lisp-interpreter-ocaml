@@ -27,6 +27,12 @@ let literalQuote = String.get "\"" 0;;
 let is_delimiter = function | '('|')'|'{'|'}'|';' -> true
                               | c when c=literalQuote -> true
                               | c -> is_white c;;
+let rec is_list e =
+  match e with
+  | Nil -> true
+  | Pair(a, b) -> is_list b
+  | _ -> false;;
+
 let rec eat_whitespace stm =
   let c = read_char stm in
   if is_white c then
@@ -77,15 +83,19 @@ let rec eval_sexp sexp env =
     match sexp with
     | Fixnum(v) -> (Fixnum(v), env) (*self eval ints and bools *)
     | Boolean(v) -> (Boolean(v), env)
-    (* | Symbol(v) -> (Symbol(v), env) *) (* symbols self-evalute for now, but later should lookup var value *)
     | Symbol(name) -> (lookup (name, env), env) (* symbols return value *)
     | Nil -> (Nil, env)
-    | Pair(Symbol "if", Pair(cond, Pair(iftrue, Pair(iffalse, Nil)))) -> (* if statements *)
-       eval_sexp (eval_if cond iftrue iffalse) env
-    | Pair(Symbol "val", Pair(Symbol name, Pair(exp, Nil))) -> (* bind variables *)
-       let (expval, _) = eval_sexp exp env in
-       let env' = bind (name, expval, env) in
-       (expval, env')
+    | Pair(_, _) when is_list sexp -> (* pair based matching *)
+      (match pair_to_list sexp with
+       | [Symbol "if"; cond; iftrue; iffalse] ->
+          eval_sexp (eval_if cond iftrue iffalse) env
+       | [Symbol "env"] -> (env, env)
+       | [Symbol "val"; Symbol name; exp] ->
+          let (expval, _) = eval_sexp exp env in
+          let env' = bind (name, expval, env) in
+          (expval, env')
+       | _ -> (sexp, env)
+      )
     | _ -> (sexp, env)
 
 (* Read Expresions *)
@@ -168,12 +178,6 @@ let rec print_sexp e =
      | Pair(a,b) -> print_sexp a; print_string " . "; print_sexp b
      | _ -> raise ThisCan'tHappenError
    in
-  let rec is_list e =
-    match e with
-    | Nil -> true
-    | Pair(a, b) -> is_list b
-    | _ -> false
-  in
   match e with
   | Fixnum(v) -> print_int v
   | Boolean(b) -> print_string (if b then "#t" else "#f")
@@ -201,6 +205,14 @@ let main =
 
 
 (* OLD STUFF *)
+(* refactored to match pair *)
+(*   | Pair(Symbol "if", Pair(cond, Pair(iftrue, Pair(iffalse, Nil)))) -> (\* if statements *\) *)
+(*      eval_sexp (eval_if cond iftrue iffalse) env *)
+(*   | Pair(Symbol "val", Pair(Symbol name, Pair(exp, Nil))) -> (\* bind variables *\) *)
+(*      let (expval, _) = eval_sexp exp env in *)
+(*      let env' = bind (name, expval, env) in *)
+(*      (expval, env') *)
+(* | Symbol(v) -> (Symbol(v), env) *) (* symbols self-evalute for now, but later should lookup var value *)
 (* repl before environments *)
 (* let rec repl stm = *)
 (*   print_string "> "; *)
