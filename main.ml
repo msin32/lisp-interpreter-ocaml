@@ -64,7 +64,7 @@ let rec lookup (n, e) =
             if n=n' then v else lookup (n, rst)
     | _ -> raise ThisCan'tHappenError;;
 
-let bind (n, v, e) = Pair(Pair(Symbol n, v), e);;
+let bind (n, v, e) = Pair(Pair(Symbol n, v), e);; (* name, value, expression *)
 
 let rec eval_sexp sexp env =
     let eval_if cond iftrue iffalse =
@@ -77,10 +77,15 @@ let rec eval_sexp sexp env =
     match sexp with
     | Fixnum(v) -> (Fixnum(v), env) (*self eval ints and bools *)
     | Boolean(v) -> (Boolean(v), env)
-    | Symbol(v) -> (Symbol(v), env) (* symbols self-evalute for now, but later should lookup var value *)
+    (* | Symbol(v) -> (Symbol(v), env) *) (* symbols self-evalute for now, but later should lookup var value *)
+    | Symbol(name) -> (lookup (name, env), env) (* symbols return value *)
     | Nil -> (Nil, env)
     | Pair(Symbol "if", Pair(cond, Pair(iftrue, Pair(iffalse, Nil)))) -> (* if statements *)
-            eval_sexp (eval_if cond iftrue iffalse) env
+       eval_sexp (eval_if cond iftrue iffalse) env
+    | Pair(Symbol "val", Pair(Symbol name, Pair(exp, Nil))) -> (* bind variables *)
+       let (expval, _) = eval_sexp exp env in
+       let env' = bind (name, expval, env) in
+       (expval, env')
     | _ -> (sexp, env)
 
 (* Read Expresions *)
