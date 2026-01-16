@@ -98,6 +98,8 @@ let rec eval_sexp sexp env =
        | [Symbol "if"; cond; iftrue; iffalse] ->
           eval_sexp (eval_if cond iftrue iffalse) env
        | [Symbol "env"] -> (env, env) (* returned val, returned env *)
+       | [Symbol "pair"; car; cdr] ->
+          (Pair(car, cdr), env)
        | [Symbol "val"; Symbol name; exp] ->
           let (expval, _) = eval_sexp exp env in
           let env' = bind (name, expval, env) in
@@ -204,11 +206,11 @@ let rec print_sexp e =
 let rec repl stm env =
   print_string "> ";
   flush stdout;
-  let sexp = read_sexp stm in
-  let (result, env') = eval_sexp sexp env in
-  print_sexp result;
+  let sexp = read_sexp stm in (* read *)
+  let (result, env') = eval_sexp sexp env in (* eval and get results, new env *)
+  print_sexp result; (* print *)
   print_newline ();
-  repl stm env';;
+  repl stm env';; (* loop with update env *)
 
 let main =
   let stm = { chr=[]; line_num=1; chan=stdin } in
