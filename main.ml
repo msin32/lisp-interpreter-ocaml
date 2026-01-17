@@ -1,3 +1,4 @@
+(* This is the single state env (rho) verson before env and user mutable store/heap (rho+sigma) implemented - store based representation *)
 (* stream type for reading file. Fields for linenum and char buffer *)
 type stream =
   { mutable line_num: int; mutable chr: char list; chan: in_channel };;
@@ -25,6 +26,7 @@ type lobject =
     | Symbol of string
     | Nil
     | Pair of lobject * lobject
+    | Primative of string * (lobject list -> lobject)
 
 (* whitespace handling *)
 let is_white c =
@@ -94,19 +96,25 @@ let rec eval_sexp sexp env =
     | Symbol(name) -> (lookup (name, env), env) (* symbols return value *)
     | Nil -> (Nil, env)
     | Pair(_, _) when is_list sexp -> (* pair based matching *)
-      (match pair_to_list sexp with
+       (match pair_to_list sexp with (* convert to list for easier parsing *)
+        (* SPECIAL FORMS *)
        | [Symbol "if"; cond; iftrue; iffalse] ->
           eval_sexp (eval_if cond iftrue iffalse) env
        | [Symbol "env"] -> (env, env) (* returned val, returned env *)
        | [Symbol "pair"; car; cdr] ->
           (Pair(car, cdr), env)
-       | [Symbol "val"; Symbol name; exp] ->
+       | [Symbol "val"; Symbol name; exp] -> (* issue: (val a (val b 5)) only a will be bound *)
           let (expval, _) = eval_sexp exp env in
           let env' = bind (name, expval, env) in
           (expval, env')
        | [Symbol "unbind"; Symbol name] ->
           let env' = unbind(name, env) in
           (Nil, env')
+       (* GENERAL FUNCTION APPLICATION *)
+       | (Symbol fn)::args ->
+          (match eval_sexp (Symbol fn) env with
+           | (Primative(n, f), _) -> (f args, env)
+           | _ -> raise (TypeError "(apply func args)"))
        | _ -> (sexp, env)
       )
     | _ -> (sexp, env)
@@ -126,7 +134,7 @@ let rec read_sexp stm =
       let _ = unread_char stm nc in
       Fixnum(int_of_string acc)
   in
-  let is_lone stm c =
+  let is_lone stm c = (* this handling for t and f should instead be stored as initial env variables *)
     let nc = read_char stm in
     let _ = unread_char stm nc in
     if is_white nc || is_delimiter nc then
