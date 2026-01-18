@@ -98,7 +98,12 @@ let rec eval_sexp sexp env =
        (match pair_to_list sexp with (* convert to list for easier parsing *)
         (* SPECIAL FORMS *)
        | [Symbol "if"; cond; iftrue; iffalse] ->
-          eval_sexp (eval_if cond iftrue iffalse) env
+          (* eval_sexp (eval_if cond iftrue iffalse) env *)
+          (* below no longer returns updated state, eg. (if t (val x 1) 2) no longer updates x, not sure why we changed this *)
+          let (ifval, _) =
+            eval_sexp (eval_if cond iftrue iffalse) env
+          in
+          (ifval, env)
        | [Symbol "env"] -> (env, env) (* returned val, returned env *)
        | [Symbol "pair"; car; cdr] ->
           (Pair(car, cdr), env)
@@ -195,6 +200,23 @@ let rec print_sexp e =
      else print_pair e;
      print_string ")";;
 
+let basis =
+  let prim_plus = function
+    | [Fixnum(a); Fixnum(b)] -> Fixnum(a+b)
+    | _ -> raise (TypeError "(* int int)")
+  in
+  let prim_pair = function
+    | [a; b] -> Pair(a, b)
+    | _ -> raise (TypeError "(pair a b)")
+  in
+  let newprim acc (name, func) =
+    bind(name, Primative(name, func), acc)
+  in
+  List.fold_left newprim Nil [
+                   ("+", prim_plus);
+                   ("pair", prim_pair)
+                 ]
+
 let rec repl stm env =
   print_string "> ";
   flush stdout;
@@ -210,7 +232,6 @@ let main =
     bind("t", Boolean(true), bind("f", Boolean(false), Nil))
   in
   repl stm env;; (* starting with initial env (rho) *)
-
 
 
 (* OLD STUFF *)
