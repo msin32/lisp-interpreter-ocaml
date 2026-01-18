@@ -1,4 +1,3 @@
-(* This is the single state env (rho) verson before env and user mutable store/heap (rho+sigma) implemented - store based representation *)
 (* stream type for reading file. Fields for linenum and char buffer *)
 type stream =
   { mutable line_num: int; mutable chr: char list; chan: in_channel };;
@@ -93,9 +92,9 @@ let rec eval_sexp sexp env =
     (* match each expression type and return value, new_env *)
     | Fixnum(v) -> (Fixnum(v), env) (*self eval ints and bools. Pass env through unchanged *)
     | Boolean(v) -> (Boolean(v), env)
-    | Symbol(name) -> (lookup (name, env), env) (* symbols return value *)
+    | Symbol(name) -> (lookup (name, env), env) (* symbol returns value *)
     | Nil -> (Nil, env)
-    | Pair(_, _) when is_list sexp -> (* pair based matching *)
+    | Pair(_, _) when is_list sexp -> (* pair/list based calls eg. (if ..) *)
        (match pair_to_list sexp with (* convert to list for easier parsing *)
         (* SPECIAL FORMS *)
        | [Symbol "if"; cond; iftrue; iffalse] ->
@@ -134,18 +133,6 @@ let rec read_sexp stm =
       let _ = unread_char stm nc in
       Fixnum(int_of_string acc)
   in
-  let is_lone stm c = (* this handling for t and f should instead be stored as initial env variables *)
-    let nc = read_char stm in
-    let _ = unread_char stm nc in
-    if is_white nc || is_delimiter nc then
-      true
-    else false
-  in
-  let is_bool stm c =
-    match c with
-    |'t'|'f' -> is_lone stm c
-    | _ -> false
-  in
   let is_symstartchar =
     function | '*'|'/'|'>'|'<'|'='|'?'|'!'|'-'|'+' -> true
              | c -> isalpha c
@@ -170,10 +157,7 @@ let rec read_sexp stm =
   in
   eat_whitespace stm;
   let c = read_char stm in
-  if is_bool stm c then
-    if c = 't' then Boolean(true)
-    else Boolean(false)
-  else if is_symstartchar c then
+  if is_symstartchar c then
     Symbol(stringOfChar c ^ read_symbol ())
   else if is_digit c then read_fixnum (Char.escaped c) (* positive numbers only*)
   else if c = '~' || c = '-' then read_fixnum (Char.escaped '-')
@@ -218,11 +202,15 @@ let rec repl stm env =
   let (result, env') = eval_sexp sexp env in (* eval and get results, new env *)
   print_sexp result; (* print *)
   print_newline ();
-  repl stm env';; (* loop with update env *)
+  repl stm env';; (* loop with updated env *)
 
 let main =
   let stm = { chr=[]; line_num=1; chan=stdin } in
-  repl stm Nil;; (* starting with empty env for now *)
+  let env = (* need to make these immutable - special handling with rho only or use rho+sigma *)
+    bind("t", Boolean(true), bind("f", Boolean(false), Nil))
+  in
+  repl stm env;; (* starting with initial env (rho) *)
+
 
 
 (* OLD STUFF *)
